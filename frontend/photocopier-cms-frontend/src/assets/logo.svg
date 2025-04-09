@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Base printer shape -->
+    <rect x="48" y="88" width="160" height="120" rx="8" fill="#41B883"/>
+    <rect x="72" y="48" width="112" height="40" rx="4" fill="#35495E"/>
+    <!-- Paper tray -->
+    <rect x="88" y="144" width="80" height="12" fill="white"/>
+    <!-- Control panel -->
+    <rect x="144" y="112" width="40" height="16" rx="2" fill="white"/>
+    <circle cx="160" cy="120" r="4" fill="#35495E"/>
+    <!-- Output tray -->
+    <rect x="72" y="168" width="112" height="24" fill="#35495E"/>
+</svg>
