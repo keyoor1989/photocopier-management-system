@@ -8,11 +8,43 @@ const ErrorResponse = require('../utils/errorResponse');
 // @route   GET /api/branches
 // @access  Private
 exports.getBranches = asyncHandler(async (req, res, next) => {
-  const branches = await Branch.find();
+  // Extract query parameters
+  const { page = 1, perPage = 10, search = '', sortBy = 'name', sortDirection = 'asc' } = req.query;
+  
+  // Build query
+  let query = {};
+  
+  // Add search filter if provided
+  if (search) {
+    query = {
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { code: { $regex: search, $options: 'i' } },
+        { city: { $regex: search, $options: 'i' } }
+      ]
+    };
+  }
+  
+  // Count total documents for pagination
+  const total = await Branch.countDocuments(query);
+  
+  // Build sort object
+  const sort = {};
+  sort[sortBy] = sortDirection === 'asc' ? 1 : -1;
+  
+  // Execute query with pagination
+  const branches = await Branch.find(query)
+    .sort(sort)
+    .skip((page - 1) * perPage)
+    .limit(parseInt(perPage));
   
   res.status(200).json({
     success: true,
     count: branches.length,
+    total,
+    page: parseInt(page),
+    perPage: parseInt(perPage),
+    totalPages: Math.ceil(total / perPage),
     data: branches
   });
 });

@@ -1,10 +1,10 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
+const cors = require('./middleware/cors');
 
 // Load environment variables
 dotenv.config();
@@ -18,13 +18,13 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
 app.use(morgan('dev'));
+app.use(cors);
 
 // Static files directory for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Import routes (we'll create these next)
+// Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const customerRoutes = require('./routes/customers');
@@ -59,10 +59,38 @@ app.get('/api', (req, res) => {
   res.json({ message: 'Welcome to Photocopier Dealership Management System API' });
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
+});
+
 // Define port
 const PORT = process.env.PORT || 5000;
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = () => {
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log('MongoDB Connected successfully');
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${PORT} is already in use, trying ${PORT + 1}...`);
+      setTimeout(() => {
+        server.close();
+        app.listen(PORT + 1, () => {
+          console.log(`Server running on port ${PORT + 1}`);
+          console.log('MongoDB Connected successfully');
+        });
+      }, 1000);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+};
+
+startServer();

@@ -1,170 +1,132 @@
 <template>
   <div class="service-ticket-form">
-    <h2 class="form-title">{{ isEditing ? 'Edit Service Ticket' : 'Create Service Ticket' }}</h2>
-    
-    <form @submit.prevent="handleSubmit" class="form-container">
-      <div class="form-section">
-        <h3>Basic Information</h3>
-        <div class="form-group">
-          <label for="title">Title*</label>
-          <input
-            type="text"
-            id="title"
-            v-model="formData.title"
-            :class="{ error: errors.title }"
-            placeholder="Brief description of the issue"
-          />
-          <span class="error-message" v-if="errors.title">{{ errors.title }}</span>
-        </div>
+    <div class="form-header">
+      <h2>{{ isEdit ? 'Edit Service Ticket' : 'Create Service Ticket' }}</h2>
+      <button @click="goBack" class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+    </div>
 
-        <div class="form-group">
-          <label for="description">Description*</label>
-          <textarea
-            id="description"
-            v-model="formData.description"
-            :class="{ error: errors.description }"
-            rows="4"
-            placeholder="Detailed description of the issue"
-          ></textarea>
-          <span class="error-message" v-if="errors.description">{{ errors.description }}</span>
-        </div>
+    <div v-if="loading" class="loading-state">
+      <i class="fas fa-spinner fa-spin"></i>
+      <span>Loading form data...</span>
+    </div>
 
-        <div class="form-row">
+    <div v-else-if="error" class="error-state">
+      <i class="fas fa-exclamation-circle"></i>
+      <span>{{ error }}</span>
+      <button @click="fetchFormData" class="retry-btn">
+        Retry
+      </button>
+    </div>
+
+    <form v-else @submit.prevent="handleSubmit" class="form-content">
+      <div class="form-grid">
+        <div class="form-section">
+          <h3>Basic Information</h3>
           <div class="form-group">
-            <label for="priority">Priority*</label>
-            <select
-              id="priority"
-              v-model="formData.priority"
-              :class="{ error: errors.priority }"
-            >
-              <option value="">Select Priority</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
+            <label for="title">Title</label>
+            <input
+              id="title"
+              v-model="form.title"
+              type="text"
+              required
+              placeholder="Enter ticket title"
+            />
+          </div>
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea
+              id="description"
+              v-model="form.description"
+              required
+              placeholder="Describe the issue"
+              rows="4"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority" v-model="form.priority" required>
               <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
             </select>
-            <span class="error-message" v-if="errors.priority">{{ errors.priority }}</span>
           </div>
+        </div>
 
+        <div class="form-section">
+          <h3>Customer & Machine</h3>
           <div class="form-group">
-            <label for="status">Status*</label>
+            <label for="customer">Customer</label>
             <select
-              id="status"
-              v-model="formData.status"
-              :class="{ error: errors.status }"
+              id="customer"
+              v-model="form.customerId"
+              required
+              @change="handleCustomerChange"
             >
-              <option value="">Select Status</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="">Select a customer</option>
+              <option
+                v-for="customer in customers"
+                :key="customer.id"
+                :value="customer.id"
+              >
+                {{ customer.name }}
+              </option>
             </select>
-            <span class="error-message" v-if="errors.status">{{ errors.status }}</span>
+          </div>
+          <div class="form-group">
+            <label for="machine">Machine</label>
+            <select
+              id="machine"
+              v-model="form.machineId"
+              required
+              :disabled="!form.customerId"
+            >
+              <option value="">Select a machine</option>
+              <option
+                v-for="machine in customerMachines"
+                :key="machine.id"
+                :value="machine.id"
+              >
+                {{ machine.model }} ({{ machine.serialNumber }})
+              </option>
+            </select>
           </div>
         </div>
-      </div>
 
-      <div class="form-section">
-        <h3>Machine Information</h3>
-        <div class="form-group">
-          <label for="machine">Machine*</label>
-          <select
-            id="machine"
-            v-model="formData.machineId"
-            :class="{ error: errors.machineId }"
-            @change="handleMachineChange"
-          >
-            <option value="">Select Machine</option>
-            <option v-for="machine in machines" :key="machine.id" :value="machine.id">
-              {{ machine.model }} - {{ machine.serialNumber }}
-            </option>
-          </select>
-          <span class="error-message" v-if="errors.machineId">{{ errors.machineId }}</span>
-        </div>
-
-        <div class="machine-details" v-if="selectedMachine">
-          <p><strong>Model:</strong> {{ selectedMachine.model }}</p>
-          <p><strong>Serial Number:</strong> {{ selectedMachine.serialNumber }}</p>
-          <p><strong>Location:</strong> {{ selectedMachine.location }}</p>
-          <p><strong>Last Service:</strong> {{ formatDate(selectedMachine.lastServiceDate) }}</p>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h3>Assignment</h3>
-        <div class="form-group">
-          <label for="assignee">Assign To</label>
-          <select
-            id="assignee"
-            v-model="formData.assigneeId"
-            :class="{ error: errors.assigneeId }"
-          >
-            <option value="">Select Technician</option>
-            <option v-for="tech in technicians" :key="tech.id" :value="tech.id">
-              {{ tech.name }}
-            </option>
-          </select>
-          <span class="error-message" v-if="errors.assigneeId">{{ errors.assigneeId }}</span>
-        </div>
-
-        <div class="form-group">
-          <label for="scheduledDate">Scheduled Date</label>
-          <input
-            type="datetime-local"
-            id="scheduledDate"
-            v-model="formData.scheduledDate"
-            :class="{ error: errors.scheduledDate }"
-            :min="minScheduledDate"
-          />
-          <span class="error-message" v-if="errors.scheduledDate">{{ errors.scheduledDate }}</span>
-        </div>
-      </div>
-
-      <div class="form-section" v-if="formData.status === 'completed'">
-        <h3>Resolution</h3>
-        <div class="form-group">
-          <label for="resolution">Resolution Notes*</label>
-          <textarea
-            id="resolution"
-            v-model="formData.resolution"
-            :class="{ error: errors.resolution }"
-            rows="4"
-            placeholder="Describe how the issue was resolved"
-          ></textarea>
-          <span class="error-message" v-if="errors.resolution">{{ errors.resolution }}</span>
-        </div>
-
-        <div class="form-group">
-          <label for="partsUsed">Parts Used</label>
-          <div class="parts-list">
-            <div v-for="(part, index) in formData.partsUsed" :key="index" class="part-item">
-              <input
-                type="text"
-                v-model="part.name"
-                placeholder="Part name"
-                class="part-name"
-              />
-              <input
-                type="number"
-                v-model="part.quantity"
-                placeholder="Qty"
-                min="1"
-                class="part-quantity"
-              />
-              <button type="button" @click="removePart(index)" class="remove-part">×</button>
-            </div>
+        <div class="form-section">
+          <h3>Service Details</h3>
+          <div class="form-group">
+            <label for="scheduledDate">Scheduled Date</label>
+            <input
+              id="scheduledDate"
+              v-model="form.scheduledDate"
+              type="datetime-local"
+              required
+            />
           </div>
-          <button type="button" @click="addPart" class="add-part-btn">
-            Add Part
-          </button>
+          <div class="form-group">
+            <label for="technician">Assigned Technician</label>
+            <select id="technician" v-model="form.technicianId" required>
+              <option value="">Select a technician</option>
+              <option
+                v-for="technician in technicians"
+                :key="technician.id"
+                :value="technician.id"
+              >
+                {{ technician.name }}
+              </option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div class="form-actions">
-        <button type="button" @click="$router.back()" class="cancel-btn">
+        <button type="button" @click="goBack" class="cancel-btn">
           Cancel
         </button>
-        <button type="submit" :disabled="isSubmitting" class="submit-btn">
-          {{ isSubmitting ? 'Saving...' : (isEditing ? 'Update Ticket' : 'Create Ticket') }}
+        <button type="submit" class="submit-btn">
+          {{ isEdit ? 'Update Ticket' : 'Create Ticket' }}
         </button>
       </div>
     </form>
@@ -172,346 +134,289 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useServiceTicketsStore } from '@/stores/serviceTickets';
-import { useMachinesStore } from '@/stores/machines';
-import { useUsersStore } from '@/stores/users';
-import { formatDate } from '@/utils/dateFormatter';
-import { useToast } from 'vue-toastification';
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useServiceTicketsStore } from '@/stores/serviceTickets'
+import { useCustomersStore } from '@/stores/customers'
+import { useTechniciansStore } from '@/stores/technicians'
 
-const route = useRoute();
-const router = useRouter();
-const toast = useToast();
-const serviceTicketsStore = useServiceTicketsStore();
-const machinesStore = useMachinesStore();
-const usersStore = useUsersStore();
+const route = useRoute()
+const router = useRouter()
+const serviceTicketsStore = useServiceTicketsStore()
+const customersStore = useCustomersStore()
+const techniciansStore = useTechniciansStore()
 
-const isEditing = computed(() => !!route.params.id);
-const isSubmitting = ref(false);
-const machines = ref([]);
-const technicians = ref([]);
-const selectedMachine = ref(null);
+const isEdit = computed(() => !!route.params.id)
+const loading = ref(false)
+const error = ref(null)
+const customers = ref([])
+const customerMachines = ref([])
+const technicians = ref([])
 
-const formData = ref({
+const form = ref({
   title: '',
   description: '',
-  priority: '',
-  status: '',
+  priority: 'medium',
+  customerId: '',
   machineId: '',
-  assigneeId: '',
   scheduledDate: '',
-  resolution: '',
-  partsUsed: []
-});
+  technicianId: ''
+})
 
-const errors = ref({});
-
-const minScheduledDate = computed(() => {
-  const now = new Date();
-  return formatDate(now, 'YYYY-MM-DDTHH:mm');
-});
-
-const validateForm = () => {
-  const newErrors = {};
-  
-  if (!formData.value.title?.trim()) {
-    newErrors.title = 'Title is required';
-  }
-  
-  if (!formData.value.description?.trim()) {
-    newErrors.description = 'Description is required';
-  }
-  
-  if (!formData.value.priority) {
-    newErrors.priority = 'Priority is required';
-  }
-  
-  if (!formData.value.status) {
-    newErrors.status = 'Status is required';
-  }
-  
-  if (!formData.value.machineId) {
-    newErrors.machineId = 'Machine selection is required';
-  }
-  
-  if (formData.value.status === 'completed' && !formData.value.resolution?.trim()) {
-    newErrors.resolution = 'Resolution notes are required for completed tickets';
-  }
-  
-  if (formData.value.scheduledDate) {
-    const scheduledDate = new Date(formData.value.scheduledDate);
-    const now = new Date();
-    if (scheduledDate < now) {
-      newErrors.scheduledDate = 'Scheduled date cannot be in the past';
+const handleCustomerChange = async () => {
+  form.value.machineId = ''
+  if (form.value.customerId) {
+    try {
+      const machines = await customersStore.fetchCustomerMachines(form.value.customerId)
+      customerMachines.value = machines
+    } catch (err) {
+      console.error('Error fetching customer machines:', err)
     }
   }
-  
-  errors.value = newErrors;
-  return Object.keys(newErrors).length === 0;
-};
+}
 
-const handleMachineChange = async () => {
-  if (formData.value.machineId) {
-    selectedMachine.value = machines.value.find(m => m.id === formData.value.machineId);
-  } else {
-    selectedMachine.value = null;
+const fetchFormData = async () => {
+  loading.value = true
+  error.value = null
+
+  try {
+    const [customersData, techniciansData] = await Promise.all([
+      customersStore.fetchCustomers(),
+      techniciansStore.fetchTechnicians()
+    ])
+
+    customers.value = customersData
+    technicians.value = techniciansData
+
+    if (isEdit.value) {
+      const ticket = await serviceTicketsStore.fetchTicketDetails(route.params.id)
+      form.value = {
+        title: ticket.title,
+        description: ticket.description,
+        priority: ticket.priority,
+        customerId: ticket.customer.id,
+        machineId: ticket.machine.id,
+        scheduledDate: ticket.scheduledDate,
+        technicianId: ticket.technician.id
+      }
+      await handleCustomerChange()
+    }
+  } catch (err) {
+    error.value = 'Failed to load form data'
+    console.error('Error fetching form data:', err)
+  } finally {
+    loading.value = false
   }
-};
-
-const addPart = () => {
-  formData.value.partsUsed.push({ name: '', quantity: 1 });
-};
-
-const removePart = (index) => {
-  formData.value.partsUsed.splice(index, 1);
-};
+}
 
 const handleSubmit = async () => {
-  if (!validateForm()) {
-    toast.error('Please fix the errors before submitting');
-    return;
-  }
-  
   try {
-    isSubmitting.value = true;
-    
-    const ticketData = {
-      ...formData.value,
-      partsUsed: formData.value.partsUsed.filter(part => part.name.trim())
-    };
-    
-    if (isEditing.value) {
-      await serviceTicketsStore.updateTicket(route.params.id, ticketData);
-      toast.success('Service ticket updated successfully');
+    if (isEdit.value) {
+      await serviceTicketsStore.updateTicket(route.params.id, form.value)
     } else {
-      await serviceTicketsStore.createTicket(ticketData);
-      toast.success('Service ticket created successfully');
+      await serviceTicketsStore.createTicket(form.value)
     }
-    
-    router.push('/service-tickets');
-  } catch (error) {
-    toast.error(error.message || 'Failed to save service ticket');
-  } finally {
-    isSubmitting.value = false;
+    router.push('/service-tickets')
+  } catch (err) {
+    console.error('Error submitting form:', err)
   }
-};
+}
 
-onMounted(async () => {
-  try {
-    // Load machines and technicians
-    machines.value = await machinesStore.fetchMachines();
-    technicians.value = await usersStore.fetchTechnicians();
-    
-    // Load ticket data if editing
-    if (isEditing.value) {
-      const ticket = await serviceTicketsStore.fetchTicket(route.params.id);
-      formData.value = {
-        ...ticket,
-        partsUsed: ticket.partsUsed || []
-      };
-      if (ticket.machineId) {
-        await handleMachineChange();
-      }
-    }
-  } catch (error) {
-    toast.error('Failed to load required data');
-    router.push('/service-tickets');
-  }
-});
+const goBack = () => {
+  router.back()
+}
+
+onMounted(() => {
+  fetchFormData()
+})
 </script>
 
 <style scoped>
 .service-ticket-form {
-  max-width: 800px;
-  margin: 0 auto;
   padding: 2rem;
 }
 
-.form-title {
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.form-header h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  margin-bottom: 2rem;
   color: #1f2937;
 }
 
-.form-container {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
+.back-btn {
+  padding: 0.5rem;
+  background-color: #f3f4f6;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.form-section {
-  background: white;
-  padding: 1.5rem;
+.back-btn:hover {
+  background-color: #e5e7eb;
+}
+
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.loading-state i {
+  font-size: 2rem;
+  color: #6366f1;
+}
+
+.error-state {
+  background-color: #fee2e2;
+  border-radius: 8px;
+  color: #ef4444;
+}
+
+.error-state i {
+  font-size: 2rem;
+}
+
+.retry-btn {
+  padding: 0.5rem 1rem;
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background-color: #dc2626;
+}
+
+.form-content {
+  background-color: white;
+  padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 .form-section h3 {
   font-size: 1.125rem;
-  font-weight: 500;
-  margin-bottom: 1.5rem;
-  color: #374151;
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .form-group {
-  margin-bottom: 1rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  color: #4b5563;
-}
-
-input,
-select,
-textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  transition: border-color 0.2s;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-.error {
-  border-color: #dc2626;
-}
-
-.error-message {
-  display: block;
-  font-size: 0.75rem;
-  color: #dc2626;
-  margin-top: 0.25rem;
-}
-
-.machine-details {
-  background: #f9fafb;
-  padding: 1rem;
-  border-radius: 4px;
-  margin-top: 1rem;
-}
-
-.machine-details p {
-  margin: 0.5rem 0;
-  font-size: 0.875rem;
-}
-
-.parts-list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
-.part-item {
-  display: flex;
-  gap: 0.5rem;
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
 }
 
-.part-name {
-  flex: 1;
-}
-
-.part-quantity {
-  width: 80px;
-}
-
-.remove-part {
-  padding: 0 0.5rem;
-  background: #fee2e2;
-  border: 1px solid #dc2626;
-  color: #dc2626;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.add-part-btn {
-  padding: 0.5rem 1rem;
-  background: #f3f4f6;
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 4px;
-  color: #374151;
-  cursor: pointer;
   font-size: 0.875rem;
+  color: #1f2937;
+  transition: border-color 0.2s;
 }
 
-.add-part-btn:hover {
-  background: #e5e7eb;
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.form-group textarea {
+  resize: vertical;
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
-  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
 }
 
-.cancel-btn,
-.submit-btn {
+.cancel-btn {
   padding: 0.75rem 1.5rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
   border-radius: 4px;
+  color: #374151;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.cancel-btn {
-  background: white;
-  border: 1px solid #d1d5db;
-  color: #4b5563;
-}
-
 .cancel-btn:hover {
-  background: #f3f4f6;
+  background-color: #f3f4f6;
 }
 
 .submit-btn {
-  background: #6366f1;
-  border: 1px solid #4f46e5;
+  padding: 0.75rem 1.5rem;
+  background-color: #6366f1;
+  border: none;
+  border-radius: 4px;
   color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.submit-btn:hover:not(:disabled) {
-  background: #4f46e5;
+.submit-btn:hover {
+  background-color: #4f46e5;
 }
 
-.submit-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .service-ticket-form {
     padding: 1rem;
   }
-  
-  .form-section {
+
+  .form-content {
     padding: 1rem;
   }
-  
-  .form-actions {
-    flex-direction: column-reverse;
+
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
-  
+
+  .form-actions {
+    flex-direction: column;
+  }
+
   .cancel-btn,
   .submit-btn {
     width: 100%;

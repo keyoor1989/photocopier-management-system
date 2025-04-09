@@ -113,7 +113,9 @@ const validateForm = () => {
   return isValid;
 };
 
-const handleSubmit = async () => {
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
   if (!validateForm()) {
     return;
   }
@@ -122,13 +124,17 @@ const handleSubmit = async () => {
     isLoading.value = true;
     error.value = '';
     
-    await authStore.login({
+    const result = await authStore.login({
       email: formData.email,
       password: formData.password,
       rememberMe: formData.rememberMe
     });
     
-    router.push('/app/dashboard');
+    if (result.success) {
+      router.push('/app/dashboard');
+    } else {
+      error.value = result.error || 'Failed to sign in. Please check your credentials and try again.';
+    }
   } catch (err) {
     error.value = err.message || 'Failed to sign in. Please check your credentials and try again.';
     console.error('Login error:', err);

@@ -6,6 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photocopier CMS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+      // Handle reconnection for development
+      if (location.host.includes('localhost') || location.host.includes(':')) {
+        window.addEventListener('beforeunload', () => {
+          // Store the current path before reload
+          sessionStorage.setItem('lastPath', location.pathname + location.search + location.hash);
+        });
+        
+        window.addEventListener('load', () => {
+          // Check if we need to restore the path
+          const lastPath = sessionStorage.getItem('lastPath');
+          if (lastPath && lastPath !== location.pathname + location.search + location.hash) {
+            history.replaceState(null, document.title, lastPath);
+            // Clear only after using
+            sessionStorage.removeItem('lastPath');
+            // Reload the app at the correct path
+            if (window.__VUE_APP__ && typeof window.__VUE_APP__.reload === 'function') {
+              window.__VUE_APP__.reload();
+            }
+          }
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>

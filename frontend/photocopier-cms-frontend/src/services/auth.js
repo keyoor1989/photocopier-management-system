@@ -1,28 +1,83 @@
-import api from './api'
+import axios from 'axios'
+import { API_BASE_URL } from '@/config'
 
-export const authService = {
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  withCredentials: true // Important for handling cookies
+})
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      // Handle unauthorized access
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
+const authService = {
   // Authentication methods
   async login(credentials) {
-    const response = await api.post('/auth/login', credentials)
-    return response.data
+    try {
+      console.log('Attempting login with credentials:', { ...credentials, password: '***' })
+      const response = await api.post('/auth/login', credentials)
+      console.log('Login response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('Login error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   async logout() {
-    const response = await api.post('/auth/logout')
-    return response.data
+    try {
+      const response = await api.get('/auth/logout')
+      return response.data
+    } catch (error) {
+      console.error('Logout error:', error.response?.data || error.message)
+      throw error
+    }
+  },
+
+  async verifyToken(token) {
+    try {
+      console.log('Verifying token...')
+      const response = await api.post('/auth/verify', { token })
+      console.log('Token verification response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('Token verification error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   async sendPasswordResetLink(email) {
-    const response = await api.post('/auth/forgot-password', { email })
-    return response.data
+    try {
+      const response = await api.post('/auth/forgot-password', { email })
+      return response.data
+    } catch (error) {
+      console.error('Password reset link error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   async resetPassword(token, password) {
-    const response = await api.post('/auth/reset-password', {
-      token,
-      password
-    })
-    return response.data
+    try {
+      const response = await api.post('/auth/reset-password', { token, password })
+      return response.data
+    } catch (error) {
+      console.error('Password reset error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   async refreshToken(refreshToken) {
@@ -32,18 +87,31 @@ export const authService = {
 
   // User profile methods
   async getProfile() {
-    const response = await api.get('/auth/profile')
+    const token = localStorage.getItem('token')
+    const response = await api.get('/auth/profile', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
     return response.data
   },
 
   async updateProfile(data) {
-    const response = await api.put('/auth/profile', data)
-    return response.data
+    try {
+      const response = await api.put('/auth/profile', data)
+      return response.data
+    } catch (error) {
+      console.error('Profile update error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   async changePassword(data) {
-    const response = await api.post('/auth/change-password', data)
-    return response.data
+    try {
+      const response = await api.put('/auth/change-password', data)
+      return response.data
+    } catch (error) {
+      console.error('Password change error:', error.response?.data || error.message)
+      throw error
+    }
   },
 
   // User management methods
@@ -201,6 +269,16 @@ export const authService = {
   async getLoginHistory(userId, params = {}) {
     const response = await api.get(`/users/${userId}/login-history`, { params })
     return response.data
+  },
+
+  async register(userData) {
+    try {
+      const response = await api.post('/auth/register', userData)
+      return response.data
+    } catch (error) {
+      console.error('Register error:', error.response?.data || error.message)
+      throw error
+    }
   }
 }
 

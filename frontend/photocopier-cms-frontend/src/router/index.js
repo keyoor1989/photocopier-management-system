@@ -286,22 +286,37 @@ const router = createRouter({
               component: IntegrationSettings
             }
           ]
+        },
+        // Activity route
+        {
+          path: 'activity',
+          name: 'activity',
+          component: ActivityFeed
         }
       ]
     }
   ]
 })
 
-// Navigation guard for protected routes
-router.beforeEach((to, from, next) => {
+// Navigation guard
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
-  } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/app/dashboard')
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+
+  if (requiresAuth) {
+    const isAuthenticated = await authStore.checkAuth()
+    if (!isAuthenticated) {
+      next({ name: 'login', query: { redirect: to.fullPath } })
+    } else {
+      next()
+    }
   } else {
-    next()
+    // If route doesn't require auth and user is logged in, redirect to dashboard
+    if (authStore.isAuthenticated && to.name === 'login') {
+      next({ name: 'dashboard' })
+    } else {
+      next()
+    }
   }
 })
 

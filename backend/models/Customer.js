@@ -29,7 +29,7 @@ const documentSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
-const CustomerSchema = new mongoose.Schema({
+const customerSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Please add a name'],
@@ -44,38 +44,66 @@ const CustomerSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Please add a phone number']
+    required: [true, 'Please add a phone number'],
+    maxlength: [20, 'Phone number can not be longer than 20 characters']
   },
   address: {
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    country: String
+  },
+  type: {
     type: String,
-    required: [true, 'Please add an address']
+    enum: ['individual', 'corporate'],
+    default: 'individual'
   },
-  company: {
-    type: String
-  },
+  companyName: String,
+  companyRegistration: String,
+  taxId: String,
   status: {
     type: String,
     enum: ['active', 'inactive'],
     default: 'active'
   },
-  branch: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Branch'
+  machines: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Machine'
+  }],
+  contracts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Contract'
+  }],
+  creditLimit: {
+    type: Number,
+    default: 0
   },
-  notes: {
-    type: String
+  paymentTerms: {
+    type: String,
+    default: 'net30'
+  },
+  notes: String,
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   createdAt: {
     type: Date,
     default: Date.now
   },
-  machines: [machineSchema],
-  assignedTo: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  updatedAt: {
+    type: Date,
+    default: Date.now
   },
-  city: String,
-  state: String,
+  company: {
+    type: String
+  },
+  branch: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Branch'
+  },
   customerType: {
     type: String,
     enum: ['individual', 'business', 'government', 'corporate'],
@@ -91,12 +119,18 @@ const CustomerSchema = new mongoose.Schema({
 });
 
 // Create indexes
-CustomerSchema.index({ name: 1 });
-CustomerSchema.index({ phone: 1 });
-CustomerSchema.index({ email: 1 });
-CustomerSchema.index({ assignedTo: 1 });
-CustomerSchema.index({ status: 1 });
-CustomerSchema.index({ customerType: 1 });
-CustomerSchema.index({ 'machines.serialNumber': 1 });
+customerSchema.index({ name: 1 });
+customerSchema.index({ phone: 1 });
+customerSchema.index({ email: 1 });
+customerSchema.index({ assignedTo: 1 });
+customerSchema.index({ status: 1 });
+customerSchema.index({ customerType: 1 });
+customerSchema.index({ 'machines.serialNumber': 1 });
 
-module.exports = mongoose.model('Customer', CustomerSchema); 
+// Update the updatedAt field on save
+customerSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
+
+module.exports = mongoose.model('Customer', customerSchema); 

@@ -1,84 +1,125 @@
 const mongoose = require('mongoose');
 
-const machineSchema = new mongoose.Schema({
-  model: String,
-  serialNumber: String
-}, { _id: false });
-
-const partsUsedSchema = new mongoose.Schema({
-  itemId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Inventory'
-  },
-  quantity: Number,
-  price: Number
-}, { _id: false });
-
 const serviceSchema = new mongoose.Schema({
-  ticketId: {
+  ticketNumber: {
     type: String,
+    required: true,
     unique: true
   },
-  customer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer',
-    required: true
-  },
-  machine: {
-    type: machineSchema,
-    required: true
-  },
-  issueDescription: {
+  type: {
     type: String,
+    enum: ['repair', 'maintenance', 'installation', 'complaint', 'inspection'],
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['open', 'assigned', 'in-progress', 'pending-parts', 'completed', 'cancelled'],
+    default: 'open'
   },
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium'
   },
-  status: {
+  machine: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Machine',
+    required: true
+  },
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    required: true
+  },
+  description: {
     type: String,
-    enum: ['open', 'assigned', 'in-progress', 'parts-waiting', 'completed', 'closed'],
-    default: 'open'
+    required: true
+  },
+  reportedIssue: {
+    type: String,
+    required: true
   },
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  partsUsed: [partsUsedSchema],
-  serviceCharge: Number,
-  serviceDate: Date,
-  completionDate: Date,
+  scheduledDate: Date,
+  startTime: Date,
+  endTime: Date,
+  diagnosis: String,
+  resolution: String,
+  partsUsed: [{
+    part: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Inventory'
+    },
+    quantity: Number,
+    cost: Number
+  }],
+  laborCost: {
+    hours: Number,
+    rate: Number,
+    total: Number
+  },
+  totalCost: Number,
   customerSignature: String,
-  remarks: String,
+  customerFeedback: {
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5
+    },
+    comments: String
+  },
+  attachments: [{
+    name: String,
+    path: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  notes: [{
+    content: String,
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
 });
 
-// Create indexes
-serviceSchema.index({ ticketId: 1 }, { unique: true });
-serviceSchema.index({ customer: 1 });
-serviceSchema.index({ 'machine.serialNumber': 1 });
-serviceSchema.index({ assignedTo: 1 });
+// Create indexes for frequently queried fields
+serviceSchema.index({ ticketNumber: 1 });
 serviceSchema.index({ status: 1 });
 serviceSchema.index({ priority: 1 });
-serviceSchema.index({ serviceDate: 1 });
+serviceSchema.index({ machine: 1 });
+serviceSchema.index({ customer: 1 });
+serviceSchema.index({ assignedTo: 1 });
+serviceSchema.index({ scheduledDate: 1 });
+serviceSchema.index({ createdAt: 1 });
 
-// Generate ticket ID before saving
-serviceSchema.pre('save', async function(next) {
-  if (!this.ticketId) {
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const count = await this.constructor.countDocuments();
-    this.ticketId = `SRV${year}${month}${(count + 1).toString().padStart(4, '0')}`;
-  }
+// Update the updatedAt field on save
+serviceSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
   next();
 });
 

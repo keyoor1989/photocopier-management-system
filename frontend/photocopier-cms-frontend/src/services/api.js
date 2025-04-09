@@ -1,18 +1,23 @@
 import axios from 'axios'
+import { API_BASE_URL } from '@/config'
+import { useAuthStore } from '@/stores/auth'
 
+// Create axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
   }
 })
 
-// Request interceptor for API calls
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    const authStore = useAuthStore()
+    const token = authStore.token
+
     if (token) {
-      config.headers.Authorization = 'Bearer ' + token
+      config.headers.Authorization = `Bearer ${token}`
     }
     return config
   },
@@ -21,36 +26,40 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor for API calls
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+    const authStore = useAuthStore()
 
-    // If the error status is 401 and there is no originalRequest._retry flag,
-    // it means the token has expired and we need to refresh it
-    if (error.response.status === 401 && !originalRequest._retry) {
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true
 
       try {
+        // Try to refresh token
         const refreshToken = localStorage.getItem('refreshToken')
-        const response = await axios.post(api.defaults.baseURL + '/auth/refresh-token', {
-          refreshToken
-        })
+        if (refreshToken) {
+          const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+            refreshToken
+          })
 
-        const { token } = response.data
-        localStorage.setItem('token', token)
-
-        // Retry the original request with the new token
-        originalRequest.headers.Authorization = 'Bearer ' + token
-        return api(originalRequest)
-      } catch (error) {
-        // If refresh token fails, redirect to login
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
-        window.location.href = '/login'
-        return Promise.reject(error)
+          const { token } = response.data
+          authStore.setToken(token)
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        }
+      } catch (refreshError) {
+        // If refresh fails, clear auth and redirect to login
+        authStore.logout()
+        return Promise.reject(refreshError)
       }
+    }
+
+    // Handle other errors
+    if (error.response?.data?.message) {
+      error.message = error.response.data.message
     }
 
     return Promise.reject(error)

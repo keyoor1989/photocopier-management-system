@@ -11,34 +11,25 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Register a new user
-// @route   POST /api/auth/register
-// @access  Private/Admin
+// @desc    Register user
+// @route   POST /api/v1/auth/register
+// @access  Public
 exports.register = asyncHandler(async (req, res, next) => {
-  const { name, email, password, role, office, phone } = req.body;
-
-  // Check if user already exists
-  const userExists = await User.findOne({ email });
-
-  if (userExists) {
-    return next(new ErrorResponse('User already exists', 400));
-  }
+  const { name, email, password, role } = req.body;
 
   // Create user
   const user = await User.create({
     name,
     email,
     password,
-    role,
-    office,
-    phone
+    role
   });
 
   sendTokenResponse(user, 201, res);
 });
 
 // @desc    Login user
-// @route   POST /api/auth/login
+// @route   POST /api/v1/auth/login
 // @access  Public
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
@@ -55,11 +46,6 @@ exports.login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
-  // Check if user is active
-  if (!user.active) {
-    return next(new ErrorResponse('Your account is deactivated. Please contact admin.', 401));
-  }
-
   // Check if password matches
   const isMatch = await user.matchPassword(password);
 
@@ -67,26 +53,68 @@ exports.login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid credentials', 401));
   }
 
+  // Check if user is active
+  if (!user.isActive) {
+    return next(new ErrorResponse('User account is deactivated', 401));
+  }
+
   sendTokenResponse(user, 200, res);
 });
 
 // @desc    Get current logged in user
-// @route   GET /api/auth/me
+// @route   GET /api/v1/auth/me
 // @access  Private
 exports.getMe = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user.id);
 
-  res.status(200).json(
-    formatResponse(true, 'User profile retrieved successfully', {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      office: user.office,
-      phone: user.phone,
-      active: user.active
-    })
-  );
+  res.status(200).json({
+    success: true,
+    data: user
+  });
+});
+
+// @desc    Verify token
+// @route   POST /api/v1/auth/verify
+// @access  Public
+exports.verifyToken = asyncHandler(async (req, res, next) => {
+  const token = req.body.token;
+
+  if (!token) {
+    return next(new ErrorResponse('No token provided', 400));
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Get user from the token
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return next(new ErrorResponse('No user found with this id', 404));
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return next(new ErrorResponse('User account is deactivated', 401));
+    }
+
+    // Generate new token
+    const newToken = user.getSignedJwtToken();
+
+    res.status(200).json({
+      success: true,
+      token: newToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    return next(new ErrorResponse('Invalid token', 401));
+  }
 });
 
 // @desc    Change password
@@ -128,22 +156,24 @@ const sendTokenResponse = (user, statusCode, res) => {
   const token = generateToken(user._id);
 
   const options = {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
   };
-
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
-  }
 
   res
     .status(statusCode)
     .cookie('token', token, options)
     .json({
       success: true,
-      token
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
     });
 };
 

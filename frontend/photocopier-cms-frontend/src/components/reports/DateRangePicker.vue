@@ -1,213 +1,158 @@
 <template>
   <div class="date-range-picker">
-    <div class="date-inputs">
-      <div class="input-group">
-        <label for="start-date">Start Date</label>
-        <input
-          type="date"
-          id="start-date"
-          v-model="startDate"
-          :max="endDate || undefined"
-          @change="emitChange"
-          :class="{ error: errors.startDate }"
-        />
-        <span class="error-message" v-if="errors.startDate">
-          {{ errors.startDate }}
-        </span>
-      </div>
-      <div class="input-group">
-        <label for="end-date">End Date</label>
-        <input
-          type="date"
-          id="end-date"
-          v-model="endDate"
-          :min="startDate || undefined"
-          @change="emitChange"
-          :class="{ error: errors.endDate }"
-        />
-        <span class="error-message" v-if="errors.endDate">
-          {{ errors.endDate }}
-        </span>
-      </div>
-    </div>
-    <div class="quick-selects">
+    <div class="preset-options">
       <button
         v-for="preset in presets"
-        :key="preset.label"
-        @click="applyPreset(preset.value)"
+        :key="preset.value"
+        class="preset-btn"
         :class="{ active: isPresetActive(preset.value) }"
-        type="button"
+        @click="selectPreset(preset.value)"
       >
         {{ preset.label }}
       </button>
-      <button
-        type="button"
-        class="clear-btn"
-        @click="clearDates"
-        v-if="hasSelectedDates"
-      >
-        Clear
-      </button>
+    </div>
+
+    <div class="date-inputs">
+      <div class="date-input-group">
+        <label for="startDate">Start Date</label>
+        <input
+          id="startDate"
+          v-model="startDate"
+          type="date"
+          class="date-input"
+          :max="endDate"
+          @change="handleDateChange"
+        />
+      </div>
+
+      <div class="date-input-group">
+        <label for="endDate">End Date</label>
+        <input
+          id="endDate"
+          v-model="endDate"
+          type="date"
+          class="date-input"
+          :min="startDate"
+          :max="maxDate"
+          @change="handleDateChange"
+        />
+      </div>
+    </div>
+
+    <div v-if="error" class="error-message">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ error }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
-import { formatDateForInput } from '@/utils/dateFormatter';
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
   modelValue: {
     type: Object,
-    default: () => ({ start: null, end: null })
+    required: true
   }
-});
+})
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue'])
 
-const startDate = ref(props.modelValue.start);
-const endDate = ref(props.modelValue.end);
-const errors = ref({});
+const error = ref(null)
+const startDate = ref(formatDate(props.modelValue.start))
+const endDate = ref(formatDate(props.modelValue.end))
 
-const hasSelectedDates = computed(() => {
-  return startDate.value || endDate.value;
-});
+const maxDate = computed(() => {
+  return formatDate(new Date())
+})
 
 const presets = [
   { label: 'Today', value: 'today' },
   { label: 'Yesterday', value: 'yesterday' },
-  { label: 'Last 7 Days', value: 'week' },
-  { label: 'Last 30 Days', value: 'month' },
-  { label: 'This Month', value: 'this-month' },
-  { label: 'Last Month', value: 'last-month' }
-];
+  { label: 'Last 7 Days', value: 'last7days' },
+  { label: 'Last 30 Days', value: 'last30days' },
+  { label: 'This Month', value: 'thisMonth' },
+  { label: 'Last Month', value: 'lastMonth' }
+]
 
-const validateDates = () => {
-  const newErrors = {};
-  
-  if (startDate.value && endDate.value) {
-    const start = new Date(startDate.value);
-    const end = new Date(endDate.value);
-    
-    if (start > end) {
-      newErrors.startDate = 'Start date cannot be after end date';
-      newErrors.endDate = 'End date cannot be before start date';
-    }
-  }
-  
-  errors.value = newErrors;
-  return Object.keys(newErrors).length === 0;
-};
+function formatDate(date) {
+  return date.toISOString().split('T')[0]
+}
 
-const applyPreset = (preset) => {
-  const now = new Date();
-  let start = new Date();
-  let end = new Date();
+function getDateRange(preset) {
+  const today = new Date()
+  const start = new Date()
+  const end = new Date()
 
   switch (preset) {
     case 'today':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
+      return { start: today, end: today }
     case 'yesterday':
-      start.setDate(now.getDate() - 1);
-      start.setHours(0, 0, 0, 0);
-      end.setDate(now.getDate() - 1);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'week':
-      start.setDate(now.getDate() - 7);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'month':
-      start.setDate(now.getDate() - 30);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'this-month':
-      start = new Date(now.getFullYear(), now.getMonth(), 1);
-      end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-    case 'last-month':
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      end = new Date(now.getFullYear(), now.getMonth(), 0);
-      end.setHours(23, 59, 59, 999);
-      break;
-  }
-
-  startDate.value = formatDateForInput(start);
-  endDate.value = formatDateForInput(end);
-  emitChange();
-};
-
-const isPresetActive = (preset) => {
-  if (!startDate.value || !endDate.value) return false;
-  
-  const start = new Date(startDate.value);
-  const end = new Date(endDate.value);
-  const now = new Date();
-  
-  switch (preset) {
-    case 'today':
-      return start.toDateString() === now.toDateString() &&
-             end.toDateString() === now.toDateString();
-    case 'yesterday': {
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      return start.toDateString() === yesterday.toDateString() &&
-             end.toDateString() === yesterday.toDateString();
-    }
-    case 'week': {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(now.getDate() - 7);
-      return start.toDateString() === weekAgo.toDateString() &&
-             end.toDateString() === now.toDateString();
-    }
-    case 'month': {
-      const monthAgo = new Date(now);
-      monthAgo.setDate(now.getDate() - 30);
-      return start.toDateString() === monthAgo.toDateString() &&
-             end.toDateString() === now.toDateString();
-    }
-    case 'this-month': {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      return start.toDateString() === firstDay.toDateString() &&
-             end.toDateString() === lastDay.toDateString();
-    }
-    case 'last-month': {
-      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
-      return start.toDateString() === firstDay.toDateString() &&
-             end.toDateString() === lastDay.toDateString();
-    }
+      start.setDate(today.getDate() - 1)
+      end.setDate(today.getDate() - 1)
+      return { start, end }
+    case 'last7days':
+      start.setDate(today.getDate() - 7)
+      return { start, end: today }
+    case 'last30days':
+      start.setDate(today.getDate() - 30)
+      return { start, end: today }
+    case 'thisMonth':
+      start.setDate(1)
+      return { start, end: today }
+    case 'lastMonth':
+      start.setMonth(today.getMonth() - 1)
+      start.setDate(1)
+      end.setMonth(today.getMonth())
+      end.setDate(0)
+      return { start, end }
     default:
-      return false;
+      return { start: props.modelValue.start, end: props.modelValue.end }
   }
-};
+}
 
-const clearDates = () => {
-  startDate.value = null;
-  endDate.value = null;
-  errors.value = {};
-  emitChange();
-};
+function isPresetActive(preset) {
+  const range = getDateRange(preset)
+  return (
+    formatDate(range.start) === startDate.value &&
+    formatDate(range.end) === endDate.value
+  )
+}
 
-const emitChange = () => {
-  if (validateDates()) {
-    emit('update:modelValue', {
-      start: startDate.value,
-      end: endDate.value
-    });
+function selectPreset(preset) {
+  const range = getDateRange(preset)
+  startDate.value = formatDate(range.start)
+  endDate.value = formatDate(range.end)
+  emit('update:modelValue', range)
+}
+
+function handleDateChange() {
+  error.value = null
+
+  if (!startDate.value || !endDate.value) {
+    error.value = 'Please select both start and end dates'
+    return
   }
-};
 
-watch(() => props.modelValue, (newValue) => {
-  startDate.value = newValue.start;
-  endDate.value = newValue.end;
-}, { deep: true });
+  const start = new Date(startDate.value)
+  const end = new Date(endDate.value)
+
+  if (start > end) {
+    error.value = 'Start date cannot be after end date'
+    return
+  }
+
+  emit('update:modelValue', { start, end })
+}
+
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    startDate.value = formatDate(newValue.start)
+    endDate.value = formatDate(newValue.end)
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -215,104 +160,94 @@ watch(() => props.modelValue, (newValue) => {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  width: 100%;
+  background-color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.preset-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.preset-btn {
+  padding: 0.5rem 1rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  color: #374151;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.preset-btn:hover {
+  background-color: #e5e7eb;
+}
+
+.preset-btn.active {
+  background-color: #6366f1;
+  border-color: #6366f1;
+  color: white;
 }
 
 .date-inputs {
   display: flex;
   gap: 1rem;
-  flex-wrap: wrap;
 }
 
-.input-group {
+.date-input-group {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  flex: 1;
-  min-width: 200px;
 }
 
-.input-group label {
+.date-input-group label {
   font-size: 0.875rem;
-  color: #666;
+  font-weight: 500;
+  color: #374151;
 }
 
-.input-group input {
+.date-input {
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid #e5e7eb;
   border-radius: 4px;
   font-size: 0.875rem;
-  width: 100%;
+  color: #1f2937;
+  transition: border-color 0.2s;
 }
 
-.input-group input.error {
-  border-color: #dc2626;
+.date-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
 .error-message {
-  font-size: 0.75rem;
-  color: #dc2626;
-}
-
-.quick-selects {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.quick-selects button {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
+  padding: 0.75rem;
+  background-color: #fee2e2;
+  color: #ef4444;
   border-radius: 4px;
-  background: white;
-  cursor: pointer;
   font-size: 0.875rem;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.quick-selects button:hover {
-  background: #f5f5f5;
-}
-
-.quick-selects button.active {
-  background: #e0e7ff;
-  border-color: #6366f1;
-  color: #4f46e5;
-}
-
-.clear-btn {
-  border-color: #dc2626 !important;
-  color: #dc2626;
-}
-
-.clear-btn:hover {
-  background: #fee2e2 !important;
 }
 
 @media (max-width: 640px) {
   .date-inputs {
     flex-direction: column;
   }
-  
-  .input-group {
-    width: 100%;
-  }
-  
-  .quick-selects {
-    justify-content: flex-start;
-  }
-  
-  .quick-selects button {
-    flex: 1;
-    min-width: calc(33.333% - 0.5rem);
-    text-align: center;
-  }
-}
 
-@media (max-width: 480px) {
-  .quick-selects button {
-    min-width: calc(50% - 0.5rem);
+  .preset-options {
+    flex-direction: column;
+  }
+
+  .preset-btn {
+    width: 100%;
   }
 }
 </style> 

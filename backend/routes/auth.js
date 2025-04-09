@@ -5,11 +5,14 @@ const {
   register,
   login,
   getMe,
-  changePassword
+  changePassword,
+  verifyToken
 } = require('../controllers/auth');
 
 // Public routes
 router.post('/login', login);
+router.post('/register', register);
+router.post('/verify', verifyToken);
 
 // Protected routes
 router.get('/me', protect, getMe);

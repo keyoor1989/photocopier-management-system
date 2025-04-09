@@ -7,20 +7,15 @@ const ErrorResponse = require('../utils/errorResponse');
 exports.protect = asyncHandler(async (req, res, next) => {
   let token;
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    // Set token from Bearer token in header
+  // Check for token in Authorization header
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    // Extract token from Authorization header
     token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.token) {
-    // Set token from cookie
-    token = req.cookies.token;
   }
 
-  // Make sure token exists
+  // If no token found
   if (!token) {
-    return next(new ErrorResponse('Not authorized to access this route', 401));
+    return next(new ErrorResponse('Not authorized to access this route - No token provided', 401));
   }
 
   try {
@@ -28,19 +23,22 @@ exports.protect = asyncHandler(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Get user from the token
-    req.user = await User.findById(decoded.id).select('-password');
+    const user = await User.findById(decoded.id).select('-password');
 
-    if (!req.user) {
-      return next(new ErrorResponse('User not found', 404));
+    if (!user) {
+      return next(new ErrorResponse('No user found with this id', 404));
     }
 
-    if (!req.user.isActive) {
-      return next(new ErrorResponse('User account is inactive', 401));
+    // Check if user is active
+    if (!user.isActive) {
+      return next(new ErrorResponse('User account is deactivated', 401));
     }
 
+    // Add user to request object
+    req.user = user;
     next();
   } catch (err) {
-    return next(new ErrorResponse('Not authorized to access this route', 401));
+    return next(new ErrorResponse('Not authorized to access this route - Invalid token', 401));
   }
 });
 
